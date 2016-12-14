@@ -30,58 +30,60 @@ class TriedToRemoveStemVirus : public std::exception {
 template <class Virus>
 struct VirusGenealogy {
 private:
+    using id_type = typename Virus::id_type;
+
     struct VirusNode {
         Virus virus;
 
-        std::set<typename Virus::id_type> children;
+        std::set<id_type> children;
 
-        std::set<typename Virus::id_type> parents;
+        std::set<id_type> parents;
 
-        VirusNode(typename Virus::id_type const& id): virus(Virus(id)) {}
+        VirusNode(id_type const& id): virus(Virus(id)) {}
     };
 
-    typename Virus::id_type stem_id;
+    using VirusNodePtr = std::shared_ptr<VirusNode>;
 
-    std::map<typename Virus::id_type, std::shared_ptr<VirusNode>> virus_map;
+    id_type stem_id;
+
+    std::map<id_type, VirusNodePtr> virus_map;
 public:
     VirusGenealogy(const VirusGenealogy& other) = delete;
-    VirusGenealogy(const VirusGenealogy&& other) = delete;
     VirusGenealogy& operator=(const VirusGenealogy& other) = delete;
-    VirusGenealogy& operator=(VirusGenealogy&& other) = delete;
 
-    VirusGenealogy(typename Virus::id_type const& stem_id) : stem_id(stem_id) {
+    VirusGenealogy(id_type const& stem_id) : stem_id(stem_id) {
         virus_map.insert(std::make_pair(stem_id, std::make_shared<VirusNode>(stem_id)));
     }
 
-    typename Virus::id_type get_stem_id() const {
+    id_type get_stem_id() const {
         return stem_id;
     }
 
-    std::vector<typename Virus::id_type> get_children(typename Virus::id_type const& id) const {
+    std::vector<id_type> get_children(id_type const& id) const {
         if(!exists(id)) {
             throw VirusNotFound();
         }
 
-        auto virus_node = virus_map.at(id);
+        VirusNodePtr virus_node = virus_map.at(id);
 
-        return std::vector<typename Virus::id_type>(virus_node->children.begin(), virus_node->children.end());
+        return std::vector<id_type>(virus_node->children.begin(), virus_node->children.end());
     }
 
-    std::vector<typename Virus::id_type> get_parents(typename Virus::id_type const& id) const {
+    std::vector<id_type> get_parents(id_type const& id) const {
         if(!exists(id)) {
             throw VirusNotFound();
         }
 
-        auto virus_node = virus_map.at(id);
+        VirusNodePtr virus_node = virus_map.at(id);
 
-        return std::vector<typename Virus::id_type>(virus_node->parents.begin(), virus_node->parents.end());
+        return std::vector<id_type>(virus_node->parents.begin(), virus_node->parents.end());
     }
 
-    bool exists(typename Virus::id_type const& id) const {
+    bool exists(id_type const& id) const {
         return virus_map.find(id) != virus_map.end();
     }
 
-    Virus& operator[](typename Virus::id_type const& id) const {
+    Virus& operator[](id_type const& id) const {
         if(!exists(id)) {
             throw VirusNotFound();
         }
@@ -89,46 +91,62 @@ public:
         return virus_map.at(id)->virus;
     }
 
-    void create(typename Virus::id_type const& id, typename Virus::id_type const& parent_id) {
+    void create(id_type const& id, id_type const& parent_id) {
         std::vector<typename Virus::id_type> v;
         v.push_back(parent_id);
         create(id, v);
     }
 
-    void create(typename Virus::id_type const& id, std::vector<typename Virus::id_type> const& parent_ids) {
-        if(exists(id)) {
+    void create(id_type const& id, std::vector<id_type> const& parent_ids) {
+        if (exists(id)) {
             throw VirusAlreadyCreated();
         }
 
-        for(auto& parent_id : parent_ids) {
-            if(!exists(parent_id)) {
+        for (auto &parent_id : parent_ids) {
+            if (!exists(parent_id)) {
                 throw VirusAlreadyCreated();
             }
         }
 
-        auto new_virus = std::make_shared<VirusNode>(id);
-        virus_map.insert(std::make_pair(id, new_virus));
+        VirusNodePtr new_virus = std::make_shared<VirusNode>(id);
 
-        for(auto& parent_id : parent_ids) {
-            auto parent = virus_map.at(parent_id);
+        try {
+            virus_map.insert(std::make_pair(id, new_virus));
 
-            new_virus->parents.insert(parent_id);
-            parent->children.insert(id);
+            for (auto &parent_id : parent_ids) {
+                auto parent = virus_map.at(parent_id);
+
+                new_virus->parents.insert(parent_id);
+                parent->children.insert(id);
+            }
+        } catch (...) {
+            for (auto &parent_id : parent_ids) {
+                virus_map.at(parent_id)->children.erase(id);
+            }
+
+            virus_map.erase(id);
+            throw;
         }
     }
 
-    void connect(typename Virus::id_type const& child_id, typename Virus::id_type const& parent_id) {
+    void connect(id_type const& child_id, id_type const& parent_id) {
         if(!exists(child_id) || !exists(parent_id)) {
             throw VirusNotFound();
         }
 
-        auto child = virus_map.at(child_id), parent = virus_map.at(parent_id);
+        VirusNodePtr child = virus_map.at(child_id), parent = virus_map.at(parent_id);
 
-        child->parents.insert(parent_id);
-        parent->children.insert(child_id);
+        try {
+            child->parents.insert(parent_id);
+            parent->children.insert(child_id);
+        } catch(...) {
+            child->parents.erase(parent_id);
+            parent->children.erase(child_id);
+            throw;
+        }
     }
 
-    void remove(typename Virus::id_type const& id) {
+    void remove(id_type const& id) {
         if(!exists(id)) {
             throw VirusNotFound();
         }
@@ -137,23 +155,39 @@ public:
             throw TriedToRemoveStemVirus();
         }
 
-        auto virus_node = virus_map.at(id);
-        
-        for(auto& parent : virus_node->parents) {
-            auto virus_parent = virus_map.at(parent);
-            virus_parent->children.erase(id);
-        }
+        VirusNodePtr virus_node = virus_map.at(id);
 
-        for(auto& child : virus_node->children) {
-            auto virus_child = virus_map.at(child);
-            virus_child->parents.erase(id);
-
-            if(virus_child->parents.empty()) {
-                remove(child);
+        try {
+            for (auto &parent : virus_node->parents) {
+                auto virus_parent = virus_map.at(parent);
+                virus_parent->children.erase(id);
             }
-        }
 
-        virus_map.erase(id);
+            for (auto &child : virus_node->children) {
+                auto virus_child = virus_map.at(child);
+                virus_child->parents.erase(id);
+
+                if (virus_child->parents.empty()) {
+                    remove(child);
+                }
+            }
+
+            virus_map.erase(id);
+        } catch(...) {
+            for (auto &parent : virus_node->parents) {
+                auto virus_parent = virus_map.at(parent);
+                virus_parent->children.insert(id);
+            }
+
+            for (auto &child : virus_node->children) {
+                auto virus_child = virus_map.at(child);
+                virus_child->parents.insert(id);
+            }
+
+            virus_map.insert(std::make_pair(id, virus_node));
+
+            throw;
+        }
     }
 };
 #endif //VIRUS_GENEALOGY_H
