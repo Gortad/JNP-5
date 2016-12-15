@@ -4,8 +4,6 @@
 #include <vector>
 #include <map>
 #include <memory>
-#include <algorithm>
-#include <iostream>
 #include <set>
 
 
@@ -228,9 +226,7 @@ public:
 
         try {
             remove_node(id);
-            std::cout << "czemu" << std::endl;
         } catch(...) {
-            std::cout << virus_map.at(stem_id)->children.size() << " " << temp_map.at(stem_id)->children.size() << std::endl;
             virus_map.swap(temp_map);
             throw;
         }
