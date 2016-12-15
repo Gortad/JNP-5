@@ -84,10 +84,12 @@ private:
     // nie wprowadza zmian
     VirusMap backup(){
         VirusMap copy_map;
+
         for (auto& p: virus_map){
             copy_map.insert(std::make_pair(p.first,
                                            std::make_shared<VirusNode>(*p.second)));
         }
+
         return copy_map;
     }
 
