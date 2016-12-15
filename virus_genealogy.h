@@ -94,9 +94,9 @@ private:
     }
 
 public:
-    VirusGenealogy(const VirusGenealogy& other) = delete;
+    VirusGenealogy(VirusGenealogy const& other) = delete;
 
-    VirusGenealogy& operator=(VirusGenealogy& const other) = delete;
+    VirusGenealogy& operator=(VirusGenealogy const& other) = delete;
 
     VirusGenealogy& operator=(VirusGenealogy&& other) = delete;
 
