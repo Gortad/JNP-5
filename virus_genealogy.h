@@ -50,6 +50,26 @@ private:
 
     VirusMap virus_map;
 
+    void remove_node(id_type const& id) {
+        VirusNodePtr virus_node = virus_map.at(id);
+
+        for (auto &parent : virus_node->parents) {
+            auto virus_parent = virus_map.at(parent);
+            virus_parent->children.erase(id);
+        }
+
+        for (auto &child : virus_node->children) {
+            auto virus_child = virus_map.at(child);
+            virus_child->parents.erase(id);
+
+            if (virus_child->parents.empty()) {
+                remove_node(child);
+            }
+        }
+
+        virus_map.erase(id);
+    }
+
 public:
     VirusGenealogy(const VirusGenealogy& other) = delete;
 
@@ -160,25 +180,10 @@ public:
             throw TriedToRemoveStemVirus();
         }
 
-        VirusNodePtr virus_node = virus_map.at(id);
         VirusMap temp_map = virus_map;
 
         try {
-            for (auto &parent : virus_node->parents) {
-                auto virus_parent = virus_map.at(parent);
-                virus_parent->children.erase(id);
-            }
-
-            for (auto &child : virus_node->children) {
-                auto virus_child = virus_map.at(child);
-                virus_child->parents.erase(id);
-
-                if (virus_child->parents.empty()) {
-                    remove(child);
-                }
-            }
-
-            virus_map.erase(id);
+            remove_node(id);
         } catch(...) {
             virus_map.swap(temp_map);
             throw;
