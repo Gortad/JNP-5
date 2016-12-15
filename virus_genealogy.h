@@ -31,7 +31,7 @@ template <class Virus>
 struct VirusGenealogy {
 private:
     using id_type = typename Virus::id_type;
-    
+
     using VirusPtr = std::shared_ptr<Virus>;
 
     struct VirusNode {
@@ -87,16 +87,18 @@ private:
     VirusMap backup(){
         VirusMap copy_map;
         for (auto& p: virus_map){
-            copy_map.insert(std::make_pair(p.first, 
-                                       std::make_shared<VirusNode>(*p.second)));
+            copy_map.insert(std::make_pair(p.first,
+                                           std::make_shared<VirusNode>(*p.second)));
         }
         return copy_map;
     }
-    
+
 public:
     VirusGenealogy(const VirusGenealogy& other) = delete;
 
-    VirusGenealogy& operator=(const VirusGenealogy& other) = delete;
+    VirusGenealogy& operator=(VirusGenealogy& const other) = delete;
+
+    VirusGenealogy& operator=(VirusGenealogy&& other) = delete;
 
     VirusGenealogy(id_type const& stem_id) : stem_id(stem_id) {
         virus_map.insert(std::make_pair(stem_id, std::make_shared<VirusNode>(stem_id)));
@@ -226,7 +228,9 @@ public:
 
         try {
             remove_node(id);
+            std::cout << "czemu" << std::endl;
         } catch(...) {
+            std::cout << virus_map.at(stem_id)->children.size() << " " << temp_map.at(stem_id)->children.size() << std::endl;
             virus_map.swap(temp_map);
             throw;
         }
