@@ -44,18 +44,22 @@ private:
 
     using VirusNodePtr = std::shared_ptr<VirusNode>;
 
+    using VirusMap = std::map<id_type, VirusNodePtr>;
+
     id_type stem_id;
 
-    std::map<id_type, VirusNodePtr> virus_map;
+    VirusMap virus_map;
+
 public:
     VirusGenealogy(const VirusGenealogy& other) = delete;
+
     VirusGenealogy& operator=(const VirusGenealogy& other) = delete;
 
     VirusGenealogy(id_type const& stem_id) : stem_id(stem_id) {
         virus_map.insert(std::make_pair(stem_id, std::make_shared<VirusNode>(stem_id)));
     }
 
-    id_type get_stem_id() const {
+    id_type get_stem_id() const noexcept {
         return stem_id;
     }
 
@@ -98,6 +102,10 @@ public:
     }
 
     void create(id_type const& id, std::vector<id_type> const& parent_ids) {
+        if(parent_ids.empty()) {
+            throw VirusNotFound();
+        }
+
         if (exists(id)) {
             throw VirusAlreadyCreated();
         }
@@ -109,6 +117,7 @@ public:
         }
 
         VirusNodePtr new_virus = std::make_shared<VirusNode>(id);
+        VirusMap temp_map = virus_map;
 
         try {
             virus_map.insert(std::make_pair(id, new_virus));
@@ -120,11 +129,7 @@ public:
                 parent->children.insert(id);
             }
         } catch (...) {
-            for (auto &parent_id : parent_ids) {
-                virus_map.at(parent_id)->children.erase(id);
-            }
-
-            virus_map.erase(id);
+            virus_map.swap(temp_map);
             throw;
         }
     }
@@ -135,13 +140,13 @@ public:
         }
 
         VirusNodePtr child = virus_map.at(child_id), parent = virus_map.at(parent_id);
+        VirusMap temp_map = virus_map;
 
         try {
             child->parents.insert(parent_id);
             parent->children.insert(child_id);
         } catch(...) {
-            child->parents.erase(parent_id);
-            parent->children.erase(child_id);
+            virus_map.swap(temp_map);
             throw;
         }
     }
@@ -156,6 +161,7 @@ public:
         }
 
         VirusNodePtr virus_node = virus_map.at(id);
+        VirusMap temp_map = virus_map;
 
         try {
             for (auto &parent : virus_node->parents) {
@@ -174,18 +180,7 @@ public:
 
             virus_map.erase(id);
         } catch(...) {
-            for (auto &parent : virus_node->parents) {
-                auto virus_parent = virus_map.at(parent);
-                virus_parent->children.insert(id);
-            }
-
-            for (auto &child : virus_node->children) {
-                auto virus_child = virus_map.at(child);
-                virus_child->parents.insert(id);
-            }
-
-            virus_map.insert(std::make_pair(id, virus_node));
-
+            virus_map.swap(temp_map);
             throw;
         }
     }
